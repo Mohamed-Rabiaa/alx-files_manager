@@ -12,7 +12,10 @@ class AuthController {
       const email = decoded.split(':')[0];
       const password = decoded.split(':')[1];
       const hashedPassword = sha1(password);
-      const user = await dbClient.getObj('users', { email, password: hashedPassword });
+      const user = await dbClient.getObj('users', {
+        email,
+        password: hashedPassword,
+      });
       if (!user) {
         return res.status(401).json({ error: 'Unauthorized' });
       }

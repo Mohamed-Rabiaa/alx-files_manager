@@ -23,12 +23,17 @@ class UsersController {
 
       const hashedPassword = sha1(password);
 
-      const result = await dbClient.saveObj('users', { email, password: hashedPassword });
+      const result = await dbClient.saveObj('users', {
+        email,
+        password: hashedPassword,
+      });
 
       return res.status(201).json({ id: result.insertedId, email });
     } catch (err) {
       console.error(err.toString());
-      return res.status(500).json({ error: 'Internal Server Error', details: err });
+      return res
+        .status(500)
+        .json({ error: 'Internal Server Error', details: err });
     }
   }
 

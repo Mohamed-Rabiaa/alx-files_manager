@@ -7,15 +7,13 @@ class RedisClient {
     this.client.on('error', (err) => {
       console.error('Redis Client Error:', err.toString());
     });
-
-    this.connect();
   }
 
-  async connect() {
+  async init() {
     try {
       await this.client.connect();
     } catch (err) {
-      console.error('Redis Connection Error:', err.toString());
+      console.error('Error connecting to Redis:', err.toString());
     }
   }
 
@@ -28,14 +26,14 @@ class RedisClient {
     try {
       value = await this.client.get(key);
     } catch (err) {
-      console.error('Error getting key from Redis:', err);
+      console.error(`Error getting ${key} from Redis:`, err.toString());
     }
     return value;
   }
 
   async set(key, value, duration) {
     try {
-      const stringValue = typeof value === 'string' ? value : (value);
+      const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
       await this.client.set(key, stringValue, { EX: duration });
     } catch (err) {
       console.error('Error setting key in Redis:', err.toString());
@@ -46,10 +44,14 @@ class RedisClient {
     try {
       await this.client.del(key);
     } catch (err) {
-      console.error('Error deleting key from Redis:', err.toString());
+      console.error(`Error deleting ${key} from Redis:`, err.toString());
     }
   }
 }
 
 const redisClient = new RedisClient();
+(async () => {
+  await redisClient.init();
+})();
+
 export default redisClient;

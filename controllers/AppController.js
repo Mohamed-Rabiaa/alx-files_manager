@@ -11,8 +11,10 @@ class AppController {
   static async getStats(req, res) {
     const data = {};
     try {
-      const [usersNumber, filesNumber] = await Promise.all([dbClient.nbUsers(),
-        dbClient.nbFiles()]);
+      const [usersNumber, filesNumber] = await Promise.all([
+        dbClient.nbUsers(),
+        dbClient.nbFiles(),
+      ]);
       data.users = usersNumber;
       data.files = filesNumber;
       return res.status(200).send(data);
