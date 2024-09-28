@@ -1,11 +1,11 @@
-import { createClient } from 'redis';
+import { createClient } from "redis";
 
 class RedisClient {
   constructor() {
     this.client = createClient();
 
-    this.client.on('error', (err) => {
-      console.error('Redis Client Error:', err.toString());
+    this.client.on("error", (err) => {
+      console.error("Redis Client Error:", err.toString());
     });
   }
 
@@ -13,7 +13,7 @@ class RedisClient {
     try {
       await this.client.connect();
     } catch (err) {
-      console.error('Error connecting to Redis:', err.toString());
+      console.error("Error connecting to Redis:", err.toString());
     }
   }
 
@@ -33,10 +33,11 @@ class RedisClient {
 
   async set(key, value, duration) {
     try {
-      const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+      const stringValue =
+        typeof value === "string" ? value : JSON.stringify(value);
       await this.client.set(key, stringValue, { EX: duration });
     } catch (err) {
-      console.error('Error setting key in Redis:', err.toString());
+      console.error("Error setting key in Redis:", err.toString());
     }
   }
 
