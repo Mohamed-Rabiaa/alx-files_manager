@@ -32,7 +32,7 @@ class FilesController {
     const isPublic = req.body && req.body.isPublic ? req.body.isPublic : false;
     const data = req.body && (type === 'file' || type === 'image') && req.body.data
       ? req.body.data
-      : '';
+      : null;
 
     if (!name) {
       return res.status(400).json({ error: 'Missing name' });
