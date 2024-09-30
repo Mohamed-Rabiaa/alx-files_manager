@@ -50,19 +50,18 @@ class FilesController {
 
     if (parentId !== 0 && parentId !== '0') {
       const file = await dbClient.getObj('files', { parentId });
-      if (!file) {
+     /* if (!file) {
         return res.status(400).json({ error: 'Parent not found' });
       }
       if (file.type !== 'folder') {
         return res.status(400).json({ error: 'Parent is not a folder' });
-      }
+      }*/
     }
     const newFile = {
       name,
       type,
-      parentId: parentId === 0 || parentId === '0' ? 0 : parentId,
+	parentId: parentId === 0 || parentId === '0' ? 0 : ObjectId(parentId),
       isPublic,
-      data,
       userId: ObjectId(userId),
     };
 
@@ -84,7 +83,7 @@ class FilesController {
       name,
       type,
       isPublic,
-      parentId: parentId === 0 || parentId === '0' ? 0 : parentId,
+	parentId: parentId === 0 || parentId === '0' ? 0 : parentId,
     });
   }
 }
