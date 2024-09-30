@@ -7,6 +7,7 @@ import {
 } from 'fs';
 import { tmpdir } from 'os';
 import mime from 'mime-types';
+import Queue from 'bull';
 import redisClient from '../utils/redis';
 import dbClient from '../utils/db';
 
@@ -74,6 +75,13 @@ class FilesController {
     }
     const result = await dbClient.saveObj('files', newFile);
 
+    if (type === 'image') {
+      const fileQueue = new Queue('file queue');
+      fileQueue.add({
+        userId: user._id.toHexString(),
+        fileId: result.insertedId.toString(),
+      });
+    }
     return res.status(201).json({
       id: result.insertedId.toString(),
       userId: user._id.toHexString(),
@@ -250,15 +258,20 @@ class FilesController {
     if (file.type === 'folder') {
       return res.status(400).json({ error: "A folder doesn't have content" });
     }
-    const path = file.localPath;
+    let localFilePath = file.localPath;
+    const { size } = req.query;
+    if (size) {
+      localFilePath = join(file.localPath, `_${size}`);
+    }
     try {
-      await accessAsync(path, constants.F_OK);
+      await accessAsync(localFilePath, constants.F_OK);
     } catch (error) {
       console.log(error);
       return res.status(404).json({ error: 'Not found' });
     }
+
     const mimeType = mime.lookup(file.name);
-    const realPath = await realpathAsync(path);
+    const realPath = await realpathAsync(localFilePath);
     res.setHeader('Content-Type', mimeType);
     return res.status(200).sendFile(realPath);
   }
