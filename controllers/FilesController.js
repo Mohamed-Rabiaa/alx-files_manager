@@ -166,9 +166,10 @@ class FilesController {
 
     const fileId = req.params.id;
     const file = await dbClient.getObj('files', {
-      _id: fileId,
-      userId: user._id,
+	_id: ObjectId(fileId),
+	userId: user._id,
     });
+      console.log({ file });
     if (!file) {
       return res.status(404).json({ error: 'Not found' });
     }
@@ -189,20 +190,21 @@ class FilesController {
   }
 
   static async putUnpublish(req, res) {
-    const token = req.headers['x-token'];
-    const user = await FilesController.getUserByToken(token);
-    if (!user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const fileId = req.params.id;
-    const file = await dbClient.getObj('files', {
+      const token = req.headers['x-token'];
+      const user = await FilesController.getUserByToken(token);
+      if (!user) {
+	  return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      const fileId = req.params.id;
+      const file = await dbClient.getObj('files', {
       _id: ObjectId(fileId),
       userId: user._id,
-    });
-    if (!file) {
-      return res.status(404).json({ error: 'Not found' });
-    }
+      });
+      console.log({ file });
+      if (!file) {
+	  return res.status(404).json({ error: 'Not found' });
+      }
     dbClient.db
       .collection('files')
       .updateOne(file, { $set: { isPublic: false } });
