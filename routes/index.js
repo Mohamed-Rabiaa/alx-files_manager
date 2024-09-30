@@ -17,5 +17,7 @@ app.get('/users/me', UsersController.getMe);
 app.post('/files', FilesController.postUpload);
 app.get('/files/:id', FilesController.getShow);
 app.get('/files', FilesController.getIndex);
+app.get('/files/:id/publish', FilesController.putPublish);
+app.get('/files/:id/unpublish ', FilesController.putUnpublish);
 
 export default app;

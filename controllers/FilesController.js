@@ -13,16 +13,7 @@ const mkDirAsync = promisify(mkdir);
 class FilesController {
   static async postUpload(req, res) {
     const token = req.headers['x-token'];
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const key = `auth_${token}`;
-    const userId = await redisClient.get(key);
-    console.log({ userId });
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const user = await dbClient.getObj('users', { _id: ObjectId(userId) });
+    const user = await FilesController.getUserByToken(token);
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -49,20 +40,20 @@ class FilesController {
     }
 
     if (parentId !== 0 && parentId !== '0') {
-      const file = await dbClient.getObj('files', { parentId });
-     /* if (!file) {
+      /* const file = await dbClient.getObj('files', { parentId });
+      if (!file) {
         return res.status(400).json({ error: 'Parent not found' });
       }
       if (file.type !== 'folder') {
         return res.status(400).json({ error: 'Parent is not a folder' });
-      }*/
+      } */
     }
     const newFile = {
       name,
       type,
-	parentId: parentId === 0 || parentId === '0' ? 0 : ObjectId(parentId),
+      parentId: parentId === 0 || parentId === '0' ? 0 : ObjectId(parentId),
       isPublic,
-      userId: ObjectId(userId),
+      userId: user._id,
     };
 
     const baseDir = `${process.env.FOLDER_PATH || ''}`.trim().length > 0
@@ -77,76 +68,170 @@ class FilesController {
       newFile.localPath = localPath;
     }
     const result = await dbClient.saveObj('files', newFile);
+
     return res.status(201).json({
       id: result.insertedId.toString(),
-      userId,
+      userId: user._id.toHexString(),
       name,
       type,
       isPublic,
-	parentId: parentId === 0 || parentId === '0' ? 0 : parentId,
+      parentId: parentId === 0 || parentId === '0' ? 0 : parentId,
     });
   }
 
-    static async getShow(req, res) {
-	const token = req.headers['x-token'];
-	if (!token) {
-	    return res.status(401).json({ error: 'Unauthorized' });
-	}
-	const key = `auth_${token}`;
-	const userId = await redisClient.get(key);
-	if (!userId) {
-	    return res.status(401).json({ error: 'Unauthorized' });
-	}
-	const user = await dbClient.getObj('users', { _id: ObjectId(userId) });
-	if (!user) {
-	    return res.status(401).json({ error: 'Unauthorized' });
-	}
-	const fileId = req.params.id;
-	const file = await dbClient.getObj('files', { _id: fileId, userId: user._id });
-	if (!file) {
-	    return res.status(404).json({ error: 'Not found' });
-	} else {
-	    return res.status(200).json(file);
-	}
+  static async getShow(req, res) {
+    const token = req.headers['x-token'];
+    const user = await FilesController.getUserByToken(token);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const fileId = req.params.id;
+    const file = await dbClient.getObj('files', {
+      _id: ObjectId(fileId),
+      userId: user._id,
+    });
+    if (!file) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    return res.status(200).json({
+      id: fileId,
+      userId: user._id.toHexString(),
+      parentId:
+          file.parentId === 0 || file.parentId === '0'
+            ? 0
+            : file.parentId.toHexString(),
+      name: file.name,
+      type: file.type,
+      isPublic: file.isPublic,
+    });
+  }
+
+  static async getIndex(req, res) {
+    const token = req.headers['x-token'];
+    const user = await FilesController.getUserByToken(token);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    static async getIndex(req, res) {
-	const token = req.headers['x-token'];
-	if (!token) {
-	    return res.status(401).json({ error: 'Unauthorized' });
-	}
-	const key = `auth_${token}`;
-	const userId = await redisClient.get(key);
-	if (!userId) {
-	    return res.status(401).json({ error: 'Unauthorized' });
-	}
-	const user = await dbClient.getObj('users', { _id: ObjectId(userId) });
-	if (!user) {
-	    return res.status(401).json({ error: 'Unauthorized' });
-	}
+    const parentId = req.query.paranetId ? req.query.paranetId : 0;
+    const page = parseInt(req.query.page, 10) || 0;
+    const limit = 20;
+    const skip = page * limit;
 
-	const parentId = req.query.paranetId ? req.query.paranetId : 0;
-	const page = parseInt(req.query.page, 10) || 0;
-	const limit = 20;
-	const skip = page * limit;
+    try {
+      const files = await dbClient.db
+        .collection('files')
+        .aggregate([
+          {
+            $match: {
+              userId: user._id,
+              parentId: parentId === 0 ? 0 : ObjectId(parentId),
+            },
+          },
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              _id: 0,
+              id: { $toString: '$_id' },
+              userId: { $toString: '$userId' },
+              name: '$name',
+              type: '$type',
+              isPublic: '$isPublic',
+              parentId: {
+                $cond: {
+                  if: { $eq: ['$parentId', '0'] },
+                  then: 0,
+                  else: { $toString: '$parentId' },
+                },
+              },
+            },
+          },
+        ])
+        .toArray();
 
-	try {
-	    const files = await dbClient.db.collection('files').aggregate([
-		{ $match: { 
-		    userId: ObjectId(userId),
-		    parentId: parentId === 0 ? 0 : ObjectId(parentId),
-		}
-		},
-		{ $skip: skip }, 
-		{ $limit: limit }  
-	    ]).toArray();
+      return res.status(200).json(files);
+    } catch (err) {
+      console.error('Error fetching files:', err);
+      return res.status(500).json({ error: 'Server error' });
+    }
+  }
 
-	    return res.status(200).json(files);
-	} catch (err) {
-	    console.error('Error fetching files:', err);
-	    return res.status(500).json({ error: 'Server error' });
-	}
-    }	
+  static async putPublish(req, res) {
+    const token = req.headers['x-token'];
+    const user = await FilesController.getUserByToken(token);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const fileId = req.params.id;
+    const file = await dbClient.getObj('files', {
+      _id: fileId,
+      userId: user._id,
+    });
+    if (!file) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    dbClient.db
+      .collection('files')
+      .updateOne(file, { $set: { isPublic: true } });
+    return res.status(200).json({
+      id: fileId,
+      userId: user._id.toHexString(),
+      parentId:
+          file.parentId === 0 || file.parentId === '0'
+            ? 0
+            : file.parentId.toHexString(),
+      name: file.name,
+      type: file.type,
+      isPublic: true,
+    });
+  }
+
+  static async putUnpublish(req, res) {
+    const token = req.headers['x-token'];
+    const user = await FilesController.getUserByToken(token);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const fileId = req.params.id;
+    const file = await dbClient.getObj('files', {
+      _id: ObjectId(fileId),
+      userId: user._id,
+    });
+    if (!file) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    dbClient.db
+      .collection('files')
+      .updateOne(file, { $set: { isPublic: false } });
+    return res.status(200).json({
+      id: fileId,
+      userId: user._id.toHexString(),
+      parentId:
+          file.parentId === 0 || file.parentId === '0'
+            ? 0
+            : file.parentId.toHexString(),
+      name: file.name,
+      type: file.type,
+      isPublic: false,
+    });
+  }
+
+  static async getUserByToken(token) {
+    if (!token) {
+      return null;
+    }
+    const key = `auth_${token}`;
+    const userId = await redisClient.get(key);
+    console.log({ userId });
+    if (!userId) {
+      return null;
+    }
+    const user = await dbClient.getObj('users', { _id: ObjectId(userId) });
+    return user;
+  }
 }
 
 export default FilesController;
